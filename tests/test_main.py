@@ -116,7 +116,7 @@ class CommandLineTestCase(TestCase):
             options = {'aws': True, 'azure_container_name': '123'}
             _validate_provider_inputs(self.parser, options)
         with self.assertRaises(SystemExit):
-            options = {'azure': True, 'gcp_report_prefix': 'gcp-report'}
+            options = {'aws': True, 'gcp_report_prefix': 'gcp-report'}
             _validate_provider_inputs(self.parser, options)
 
     def test_invalid_azure_inputs(self):
@@ -147,7 +147,7 @@ class CommandLineTestCase(TestCase):
             options = {'ocp': True, 'azure_container_name': '123'}
             _validate_provider_inputs(self.parser, options)
         with self.assertRaises(SystemExit):
-            options = {'azure': True, 'gcp_report_prefix': 'gcp-report'}
+            options = {'ocp': True, 'gcp_report_prefix': 'gcp-report'}
             _validate_provider_inputs(self.parser, options)
 
     @patch.dict(os.environ, {'INSIGHTS_ACCOUNT_ID': '12345', 'INSIGHTS_ORG_ID': '54321'})
@@ -185,6 +185,14 @@ class CommandLineTestCase(TestCase):
         with self.assertRaises(SystemExit):
             options = {'ocp': True}
             _validate_provider_inputs(self.parser, options)
+
+    def test_ocp_no_insights_upload(self):
+        """
+        Test where user passes ocp without insights upload.
+        """
+        options = {'ocp': True, 'ocp_cluster_id':'132'}
+        is_valid, _ = _validate_provider_inputs(self.parser, options)
+        self.assertTrue(is_valid)
 
     def test_main_no_inputs(self):
         """
@@ -241,14 +249,6 @@ class CommandLineTestCase(TestCase):
             _validate_provider_inputs(self.parser, options)
         with self.assertRaises(SystemExit):
             options = {'gcp': True, 'ocp_cluster_id': '123'}
-            _validate_provider_inputs(self.parser, options)
-
-    def test_invalid_gcp_inputs_aws_args(self):
-        """
-        Test where user aws arg when creating gcp data.
-        """
-        with self.assertRaises(SystemExit):
-            options = {'gcp': True, 'aws_bucket_name': 'my-bucket'}
             _validate_provider_inputs(self.parser, options)
 
     def test_no_provider_type_fail(self):

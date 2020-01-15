@@ -31,11 +31,11 @@ from dateutil.relativedelta import relativedelta
 
 from nise.generators.ocp.ocp_generator import OCP_REPORT_TYPE_TO_COLS
 from nise.report import (_create_month_list, _generate_azure_filename,
-                         _get_generators, _write_csv, _write_manifest,
-                         aws_create_report, azure_create_report,
-                         gcp_create_report, gcp_route_file,
-                         ocp_create_report, ocp_route_file,
-                         post_payload_to_ingest_service)
+                         _get_generators, _write_csv, _remove_files,
+                         _write_manifest,aws_create_report,
+                         azure_create_report, gcp_create_report,
+                         gcp_route_file, ocp_create_report,
+                         ocp_route_file, post_payload_to_ingest_service)
 
 
 
@@ -56,6 +56,17 @@ class MiscReportTestCase(TestCase):
         _write_csv(temp_file.name, data, headers)
         self.assertTrue(os.path.exists(temp_file.name))
         os.remove(temp_file.name)
+
+    def test_remove_files(self):
+        """Test to see if files are deleted."""
+        temp_file = NamedTemporaryFile(mode='w', delete=False)
+        headers = ['col1', 'col2']
+        data = [{'col1': 'r1c1', 'col2': 'r1c2'},
+                {'col1': 'r2c1', 'col2': 'r2c2'}]
+        _write_csv(temp_file.name, data, headers)
+        self.assertTrue(os.path.exists(temp_file.name))
+        _remove_files([temp_file.name])
+        self.assertFalse(os.path.exists(temp_file.name))
 
     def test_write_manifest(self):
         """Test the writing of the manifest data."""
@@ -240,6 +251,26 @@ class AWSReportTestCase(TestCase):
         os.remove(expected_month_output_file)
         shutil.rmtree(local_bucket_path)
 
+    def test_aws_create_report_with_local_dir_remove_local_monthly(self):
+        """Test the aws report with local directory and remove local."""
+        now = datetime.datetime.now().replace(microsecond=0, second=0, minute=0, hour=0)
+        one_day = datetime.timedelta(days=1)
+        yesterday = now - one_day
+        local_bucket_path = mkdtemp()
+        options = {'start_date': yesterday,
+                   'end_date': now,
+                   'aws_bucket_name': local_bucket_path,
+                   'aws_report_name': 'cur_report',
+                   'aws_prefix_name': 'my_prefix',
+                   'remove_local': True}
+        aws_create_report(options)
+        month_output_file_name = '{}-{}-{}'.format(calendar.month_name[now.month],
+                                                   now.year,
+                                                   'cur_report')
+        expected_month_output_file = '{}/{}.csv'.format(os.getcwd(), month_output_file_name)
+        self.assertFalse(os.path.isfile(expected_month_output_file))
+        shutil.rmtree(local_bucket_path)
+
     def test_aws_create_report_finalize_report_copy(self):
         """Test that an aws finalized copy of a report file has an invoice id."""
 
@@ -413,6 +444,28 @@ class OCPReportTestCase(TestCase):
             expected_month_output_file = '{}/{}.csv'.format(os.getcwd(), month_output_file_name)
             self.assertTrue(os.path.isfile(expected_month_output_file))
             os.remove(expected_month_output_file)
+        shutil.rmtree(local_insights_upload)
+
+    def test_ocp_create_report_with_local_dir_remove_local_monthly(self):
+        """Test the ocp report with local directory and remove local."""
+        now = datetime.datetime.now().replace(microsecond=0, second=0, minute=0, hour=0)
+        one_day = datetime.timedelta(days=1)
+        yesterday = now - one_day
+        local_insights_upload = mkdtemp()
+        cluster_id = '11112222'
+        options = {'start_date': yesterday,
+                   'end_date': now,
+                   'insights_upload': local_insights_upload,
+                   'ocp_cluster_id': cluster_id,
+                   'remove_local': True}
+        ocp_create_report(options)
+        for report_type in OCP_REPORT_TYPE_TO_COLS.keys():
+            month_output_file_name = '{}-{}-{}-{}'.format(calendar.month_name[now.month],
+                                                          now.year,
+                                                          cluster_id,
+                                                          report_type)
+            expected_month_output_file = '{}/{}.csv'.format(os.getcwd(), month_output_file_name)
+            self.assertFalse(os.path.isfile(expected_month_output_file))
         shutil.rmtree(local_insights_upload)
 
     def test_ocp_create_report_with_local_dir_static_generation(self):
@@ -632,6 +685,25 @@ class AzureReportTestCase(TestCase):
         expected_month_output_file = self.MOCK_AZURE_REPORT_FILENAME
         self.assertTrue(os.path.isfile(expected_month_output_file))
         os.remove(expected_month_output_file)
+        shutil.rmtree(local_storage_path)
+
+    @patch.dict(os.environ, {'AZURE_STORAGE_ACCOUNT': 'None'})
+    @patch('nise.report._generate_azure_filename')
+    def test_azure_create_report_with_local_dir_remove_local_monthly(self, mock_name):
+        """Test the azure report with local directory and remove local."""
+        mock_name.side_effect = self.mock_generate_azure_filename
+        now = datetime.datetime.now().replace(microsecond=0, second=0, minute=0, hour=0)
+        one_day = datetime.timedelta(days=1)
+        yesterday = now - one_day
+        local_storage_path = mkdtemp()
+        options = {'start_date': yesterday,
+                   'end_date': now,
+                   'azure_container_name': local_storage_path,
+                   'azure_report_name': 'cur_report',
+                   'remove_local': True}
+        azure_create_report(options)
+        expected_month_output_file = self.MOCK_AZURE_REPORT_FILENAME
+        self.assertFalse(os.path.isfile(expected_month_output_file))
         shutil.rmtree(local_storage_path)
 
     @patch.dict(os.environ, {'AZURE_STORAGE_ACCOUNT': 'NOT None'})

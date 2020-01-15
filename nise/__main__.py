@@ -141,6 +141,10 @@ def create_parser():
                         dest='gcp_bucket_name',
                         required=False,
                         help='GCP storage account to place the data.')
+    parser.add_argument('--remove-local',
+                        dest='remove_local',
+                        action='store_true',
+                        help='Remove local monthly files at the end.')
 
     return parser
 

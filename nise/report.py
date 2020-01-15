@@ -87,6 +87,15 @@ def _write_csv(output_file, data, header):
             writer.writerow(row)
 
 
+def _remove_files(file_list):
+    """Remove files."""
+    for file_path in file_list:
+        try:
+            os.remove(file_path)
+        except FileNotFoundError:
+            print('File {0} was not found.'.format(file_path))
+
+
 def _generate_azure_filename():
     """Generate filename for azure report."""
     output_file_name = '{}_{}'.format('costreport', uuid4())
@@ -357,6 +366,7 @@ def aws_create_report(options):
 
     for month in months:
         data = []
+        monthly_files = []
         fake = Faker()
         for generator in generators:
             generator_cls = generator.get('generator')
@@ -380,6 +390,7 @@ def aws_create_report(options):
                                                    gen_start_date.year,
                                                    options.get('aws_report_name'))
         month_output_file = '{}/{}.csv'.format(os.getcwd(), month_output_file_name)
+        monthly_files.append(month_output_file)
         if aws_finalize_report and aws_finalize_report == 'overwrite':
             data = _aws_finalize_report(data, static_report_data)
         elif aws_finalize_report and aws_finalize_report == 'copy':
@@ -419,6 +430,9 @@ def aws_create_report(options):
                            temp_cur_zip)
             os.remove(temp_manifest)
             os.remove(temp_cur_zip)
+        remove_local = options.get('remove_local', False)
+        if remove_local:
+            _remove_files(monthly_files)
 
 
 # pylint: disable=too-many-locals,too-many-statements
@@ -446,6 +460,7 @@ def azure_create_report(options):
     meter_cache = {}
     for month in months:
         data = []
+        monthly_files = []
         for generator in generators:
             generator_cls = generator.get('generator')
             attributes = generator.get('attributes', {})
@@ -470,6 +485,7 @@ def azure_create_report(options):
         date_range = _generate_azure_date_range(month)
 
         _write_csv(local_path, data, AZURE_COLUMNS)
+        monthly_files.append(local_path)
 
         azure_container_name = options.get('azure_container_name')
         if azure_container_name:
@@ -492,8 +508,12 @@ def azure_create_report(options):
                 azure_route_file(azure_container_name,
                                  file_path,
                                  local_path)
+        remove_local = options.get('remove_local', False)
+        if remove_local:
+            _remove_files(monthly_files)
 
 
+# pylint: disable=R0912
 def ocp_create_report(options):  # noqa: C901
     """Create a usage report file."""
     start_date = options.get('start_date')
@@ -567,6 +587,10 @@ def ocp_create_report(options):  # noqa: C901
             os.remove(temp_manifest_name)
             os.remove(temp_usage_zip)
 
+        remove_local = options.get('remove_local', False)
+        if remove_local:
+            _remove_files(monthly_files)
+
 
 # pylint: disable=too-many-locals,too-many-statements
 def gcp_create_report(options):
@@ -625,3 +649,7 @@ def gcp_create_report(options):
         gcp_route_file(gcp_bucket_name,
                        output_file_path,
                        output_file_name)
+
+    remove_local = options.get('remove_local', False)
+    if remove_local:
+        _remove_files(monthly_files)
